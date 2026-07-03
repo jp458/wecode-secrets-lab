@@ -1,0 +1,11 @@
+[[rules]]
+id = "wecode-internal-key"
+description = "Détection des clés d'accès internes WeCode"
+regex = '''WECODE-KEY-[A-Z0-9]{16}'''
+secretGroup = 0
+
+[allowlist]
+description = "Ignorer les clés d'exemples utilisées dans la documentation"
+secrets = [
+    "WECODE-KEY-ABCDEF1234567890"
+]

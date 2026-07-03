@@ -1,0 +1,65 @@
+name: Security Scan (SAST & SCA)
+
+# Déclencheurs de la pipeline : s'exécute à chaque push ou pull request sur master/main
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  # Job centralisé pour exécuter nos analyses de sécurité
+  security-audit:
+    name: Run Security Audits
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1 : Récupération du code source de notre dépôt
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Étape 2 : Configuration de l'environnement Python (aligné sur notre version)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # Étape 3 : Installation des outils de sécurité requis (Bandit et pip-audit)
+      - name: Install security scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit pip-audit
+
+      # Étape 4 : Exécution du scan SAST avec Bandit
+      # continue-on-error garantit qu'on génère et sauvegarde le rapport même si des failles existent
+      - name: Run Bandit (SAST Scan)
+        run: |
+          bandit -r . -f json -o bandit_report.json
+        continue-on-error: true
+
+      # Étape 5 : Exécution du scan SCA avec pip-audit
+      # Même logique : extraction du rapport JSON avant de bloquer
+      - name: Run pip-audit (SCA Scan)
+        run: |
+          pip-audit -r requirements.txt -f json -o pip_audit_report.json
+        continue-on-error: true
+
+      # Étape 6 : Sauvegarde des rapports JSON comme artefacts de pipeline téléchargeables
+      - name: Upload Bandit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+
+      - name: Upload pip-audit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-security-report
+          path: pip-audit-report.json
+
+      # Étape 7 : Implémentation du Quality Gate (Politique de blocage stricte)
+      - name: Enforce Security Quality Gate
+        run: |
+          echo "=== Vérification des critères du Quality Gate ==="
+          bandit -r . -lll -x ./.venv
+          pip-audit -r requirements.txt

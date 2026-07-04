@@ -12,39 +12,46 @@ jobs:
   security-audit:
     name: Run Security Audits
     runs-on: ubuntu-latest
-
     steps:
-      # Étape 1 : Récupération du code source de notre dépôt
+      # Étape 1 : Récupération du code source, avec tout l'historique pour Gitleaks
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # Étape 2 : Configuration de l'environnement Python (aligné sur notre version)
+      # Étape 2 : Scan de l'historique Git à la recherche de secrets fuités
+      - name: Gitleaks Scan (Secrets Detection)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: gitleaks.toml
+
+      # Étape 3 : Configuration de l'environnement Python (aligné sur notre version)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
-      # Étape 3 : Installation des outils de sécurité requis (Bandit et pip-audit)
+      # Étape 4 : Installation des outils de sécurité requis (Bandit et pip-audit)
       - name: Install security scanners
         run: |
           python -m pip install --upgrade pip
           pip install bandit pip-audit
 
-      # Étape 4 : Exécution du scan SAST avec Bandit
+      # Étape 5 : Exécution du scan SAST avec Bandit
       # continue-on-error garantit qu'on génère et sauvegarde le rapport même si des failles existent
       - name: Run Bandit (SAST Scan)
         run: |
-          bandit -r . -f json -o bandit_report.json
+          bandit -r . -f json -o bandit-report.json
         continue-on-error: true
 
-      # Étape 5 : Exécution du scan SCA avec pip-audit
-      # Même logique : extraction du rapport JSON avant de bloquer
+      # Étape 6 : Exécution du scan SCA avec pip-audit
       - name: Run pip-audit (SCA Scan)
         run: |
-          pip-audit -r requirements.txt -f json -o pip_audit_report.json
+          pip-audit -r requirements.txt -f json -o pip-audit-report.json
         continue-on-error: true
 
-      # Étape 6 : Sauvegarde des rapports JSON comme artefacts de pipeline téléchargeables
+      # Étape 7 : Sauvegarde des rapports JSON comme artefacts de pipeline téléchargeables
       - name: Upload Bandit Report
         uses: actions/upload-artifact@v4
         with:
@@ -57,7 +64,7 @@ jobs:
           name: pip-audit-security-report
           path: pip-audit-report.json
 
-      # Étape 7 : Implémentation du Quality Gate (Politique de blocage stricte)
+      # Étape 8 : Implémentation du Quality Gate (Politique de blocage stricte)
       - name: Enforce Security Quality Gate
         run: |
           echo "=== Vérification des critères du Quality Gate ==="
